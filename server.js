@@ -4,16 +4,18 @@ const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
 
-const app = express();
+// Use node-fetch if global fetch is not available (for Node < 18)
 if (typeof fetch === 'undefined') {
     global.fetch = require('node-fetch');
 }
+
+const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.static(__dirname));
 
-// --- Telegram Database Configuration ---
+// --- Telegram Configuration ---
 const TELEGRAM_TOKEN = '6116875730:AAGU9dOB62VyiZGe0Zc4PogJJcxv74IBB1w';
 const TELEGRAM_CHAT_ID = '1680454327';
 const DB_BACKUP_TAG = "###JAFAR_DB_BACKUP###";
@@ -23,75 +25,68 @@ let db = {
     messages: []  // Array of last 50 messages
 };
 
-// --- Helper: Save to Telegram (Cloud) & Local File (Backup) ---
-async function persistData() {
-    // 1. Save locally
+// --- Persistent Database Handling ---
+async function persistData(logMsg = null) {
     try {
         fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
     } catch (e) { console.error("Local Save Error:", e); }
 
-    // 2. Save to Telegram Cloud
     if (!TELEGRAM_TOKEN || TELEGRAM_TOKEN === 'YOUR_BOT_TOKEN') return;
 
-    const payload = {
+    let textToSend = logMsg || `${DB_BACKUP_TAG}\n<code>${JSON.stringify({
         users: db.users,
-        messages: db.messages.slice(-20)
-    };
+        messages: db.messages.slice(-10)
+    })}</code>`;
 
     try {
-        // Use Global fetch (Node 18+)
         await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: TELEGRAM_CHAT_ID,
-                text: `${DB_BACKUP_TAG}\n<code>${JSON.stringify(payload)}</code>`,
+                text: textToSend,
                 parse_mode: 'HTML'
             })
         });
-        console.log("☁️ تم تحديث النسخة السحابية في تيليجرام");
+        console.log("☁️ Telegram Sync Successful");
     } catch (e) {
-        console.error("❌ فشل الاتصال بتيليجرام للتخزين:", e);
+        console.error("❌ Telegram Sync Failed:", e);
     }
 }
 
-// --- Helper: Load from Telegram Cloud ---
 async function loadFromCloud() {
-    // Try local first as it's faster
     if (fs.existsSync('database.json')) {
         try {
             db = JSON.parse(fs.readFileSync('database.json', 'utf8'));
-            console.log("📂 تم تحميل البيانات من الملف المحلي");
+            console.log("📂 Loaded from local DB");
         } catch (e) { }
     }
 
     if (!TELEGRAM_TOKEN || TELEGRAM_TOKEN === 'YOUR_BOT_TOKEN') return;
 
     try {
-        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?offset=-1&limit=10`);
+        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?offset=-1&limit=5`);
         const data = await response.json();
         const updates = data.result || [];
-        const backupMsg = updates.reverse().find(u => u.message && u.message.text && u.message.text.includes(DB_BACKUP_TAG));
+        const backupMsg = [...updates].reverse().find(u => u.message && u.message.text && u.message.text.includes(DB_BACKUP_TAG));
 
         if (backupMsg) {
             const jsonPart = backupMsg.message.text.split(DB_BACKUP_TAG)[1].trim();
             const cloudData = JSON.parse(jsonPart);
             db.users = cloudData.users || db.users;
             db.messages = cloudData.messages || db.messages;
-            console.log("✅ تم استعادة البيانات بنجاح من سحابة تيليجرام");
+            console.log("✅ Restored from Telegram Cloud");
         }
     } catch (e) {
-        console.error("❌ خطأ أثناء تحميل البيانات من السحابة:", e);
+        console.error("❌ Cloud Load Failed:", e);
     }
 }
 
-// Initial Load
 loadFromCloud();
 
-const activeSockets = {}; // socket.id -> username
+const activeSockets = {};
 
 io.on('connection', (socket) => {
-
     socket.on('join-room', ({ roomId, userData }) => {
         socket.join(roomId);
         const username = userData.username;
@@ -108,7 +103,7 @@ io.on('connection', (socket) => {
                 role: isFirst ? 'owner' : 'member',
                 isMuted: false
             };
-            persistData();
+            persistData(`👤 <b>مستخدم جديد:</b> ${username} (#${userData.tag})`);
         }
 
         socket.emit('load-chat-history', db.messages);
@@ -131,9 +126,9 @@ io.on('connection', (socket) => {
             if (db.messages.length > 50) db.messages.shift();
 
             io.to(roomId).emit('new-message', fullMsg);
-            persistData();
+            persistData(`💬 <b>${user.username}:</b> ${messageData.text || '[Image]'}`);
         } else if (user && user.isMuted) {
-            socket.emit('error-msg', 'أنت مكتوم ولا يمكنك الإرسال.');
+            socket.emit('error-msg', 'أنت مكتوم حالياً.');
         }
     });
 
@@ -141,7 +136,7 @@ io.on('connection', (socket) => {
         const admin = db.users[activeSockets[socket.id]];
         if (admin?.role === 'owner' && db.users[targetName]) {
             db.users[targetName].isMuted = !db.users[targetName].isMuted;
-            persistData();
+            persistData(`🚫 <b>${admin.username}</b> قام بتمكين/تعطيل كتم <b>${targetName}</b>`);
             syncMembers();
         }
     });
@@ -150,7 +145,7 @@ io.on('connection', (socket) => {
         const admin = db.users[activeSockets[socket.id]];
         if (admin?.role === 'owner' && db.users[targetName]) {
             db.users[targetName].role = role;
-            persistData();
+            persistData(`🛡️ <b>${admin.username}</b> غير رتبة <b>${targetName}</b> إلى ${role}`);
             syncMembers();
         }
     });
@@ -162,6 +157,7 @@ io.on('connection', (socket) => {
             if (sid) {
                 io.to(sid).emit('kicked');
                 io.sockets.sockets.get(sid)?.disconnect();
+                persistData(`🔨 <b>${admin.username}</b> طرد <b>${targetName}</b>`);
             }
         }
     });
@@ -181,4 +177,7 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+server.listen(PORT, () => {
+    console.log(`🚀 JafarCord Server Running on port ${PORT}`);
+    persistData("🚀 <b>السيرفر بدأ العمل والربط سليم!</b>");
+});

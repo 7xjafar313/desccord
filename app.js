@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUser = JSON.parse(localStorage.getItem('jafarcord_user')) || {
         username: '',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + Math.random(),
-        tag: '#' + Math.floor(1000 + Math.random() * 9000)
+        tag: Math.floor(1000 + Math.random() * 9000).toString()
     };
 
     let socket = null;
@@ -25,9 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
             socket = io();
         }
 
+        socket.on('connect', () => {
+            console.log("Connected to server");
+            socket.emit('join-room', { roomId: currentTextChannel, userData: currentUser });
+        });
+
         socket.on('load-chat-history', (history) => {
-            messagesContainer.innerHTML = '';
-            history.forEach(renderMessage);
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+                history.forEach(renderMessage);
+            }
         });
 
         socket.on('update-member-list', (users) => {
@@ -43,24 +50,22 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('new-message', renderMessage);
         socket.on('error-msg', (msg) => alert(msg));
         socket.on('kicked', () => {
-            alert("تم طردك بواسطة الأدمن.");
+            alert("تم طردك من السيرفر.");
             localStorage.clear();
             window.location.reload();
         });
-
-        socket.emit('join-room', { roomId: currentTextChannel, userData: currentUser });
     };
 
     const renderMemberList = (users) => {
         if (!memberList) return;
         memberList.innerHTML = '';
         const onlineCount = users.filter(u => u.isOnline).length;
-        memberCount.innerText = `${onlineCount} متصل / ${users.length} إجمالي`;
+        if (memberCount) memberCount.innerText = `${onlineCount} متصل / ${users.length} إجمالي`;
 
         users.forEach(user => {
             const div = document.createElement('div');
             div.className = `member-item ${user.isOnline ? '' : 'offline'}`;
-            if (!user.isOnline) div.style.opacity = '0.4';
+            if (!user.isOnline) div.style.opacity = '0.5';
 
             const roleClass = `role-${user.role}`;
             const muteIcon = user.isMuted ? '<i class="fa-solid fa-microphone-slash mute-indicator"></i>' : '';
@@ -90,10 +95,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.emitAction = (event, data) => {
-        socket.emit(event, data);
+        if (socket) socket.emit(event, data);
     };
 
     const renderMessage = (data) => {
+        if (!messagesContainer) return;
         const div = document.createElement('div');
         div.className = 'message';
         const roleLabel = data.role === 'owner' ? '[أدمن]' : (data.role === 'mod' ? '[مشرف]' : '');
@@ -101,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <img src="${data.avatar}" class="message-avatar">
             <div class="message-content">
                 <div class="message-header"><span class="message-user role-${data.role}">${data.username} <small>${roleLabel}</small></span><span class="message-time">${data.time}</span></div>
-                <div class="message-text">${data.text}</div>
+                <div class="message-text">${escapeHTML(data.text)}</div>
             </div>
         `;
         messagesContainer.appendChild(div);
@@ -109,10 +115,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const handleLogin = (name) => {
+        if (!name.trim()) return;
         currentUser.username = name;
         localStorage.setItem('jafarcord_user', JSON.stringify(currentUser));
-        if (authOverlay) authOverlay.style.display = 'none';
-        document.body.classList.remove('auth-mode');
+
+        if (authOverlay) {
+            authOverlay.style.opacity = '0';
+            setTimeout(() => {
+                authOverlay.style.display = 'none';
+                document.body.classList.remove('auth-mode');
+            }, 300);
+        }
         initConnection();
     };
 
@@ -121,34 +134,34 @@ document.addEventListener('DOMContentLoaded', () => {
         handleLogin(currentUser.username);
     }
 
-    // Auth Switching
+    // Auth Card Switching
     if (showRegister) {
-        showRegister.addEventListener('click', (e) => {
+        showRegister.onclick = (e) => {
             e.preventDefault();
             loginCard.style.display = 'none';
             registerCard.style.display = 'block';
-        });
+        };
     }
 
     if (showLogin) {
-        showLogin.addEventListener('click', (e) => {
+        showLogin.onclick = (e) => {
             e.preventDefault();
             registerCard.style.display = 'none';
             loginCard.style.display = 'block';
-        });
+        };
     }
 
-    document.getElementById('loginForm')?.addEventListener('submit', (e) => {
+    document.getElementById('loginForm')?.onsubmit = (e) => {
         e.preventDefault();
-        const u = document.getElementById('loginEmail').value;
-        if (u) handleLogin(u);
-    });
+        const input = document.getElementById('loginEmail');
+        if (input && input.value) handleLogin(input.value);
+    };
 
-    document.getElementById('registerForm')?.addEventListener('submit', (e) => {
+    document.getElementById('registerForm')?.onsubmit = (e) => {
         e.preventDefault();
-        const u = document.getElementById('regUsername').value;
-        if (u) handleLogin(u);
-    });
+        const input = document.getElementById('regUsername');
+        if (input && input.value) handleLogin(input.value);
+    };
 
     chatInput?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && chatInput.value.trim() !== '') {
@@ -164,5 +177,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    document.getElementById('menuBtn')?.onclick = () => document.getElementById('channelSidebar').classList.toggle('open');
+    function escapeHTML(str) {
+        const p = document.createElement('p');
+        p.textContent = str;
+        return p.innerHTML;
+    }
+
+    document.getElementById('menuBtn')?.onclick = () => {
+        const sidebar = document.getElementById('channelSidebar');
+        if (sidebar) sidebar.classList.toggle('open');
+    };
 });
