@@ -5,6 +5,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const memberList = document.getElementById('memberList');
     const memberCount = document.getElementById('memberCount');
     const authOverlay = document.getElementById('authOverlay');
+    const loginCard = document.getElementById('loginCard');
+    const registerCard = document.getElementById('registerCard');
+    const showRegister = document.getElementById('showRegister');
+    const showLogin = document.getElementById('showLogin');
 
     // --- State ---
     let currentUser = JSON.parse(localStorage.getItem('jafarcord_user')) || {
@@ -17,16 +21,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTextChannel = 'عام';
 
     const initConnection = () => {
-        socket = io();
+        if (!socket) {
+            socket = io();
+        }
 
-        // Load History
         socket.on('load-chat-history', (history) => {
-            messagesContainer.innerHTML = ''; // Clear and reload
+            messagesContainer.innerHTML = '';
             history.forEach(renderMessage);
         });
 
         socket.on('update-member-list', (users) => {
-            // Find my status in the persistent list
             const me = users.find(u => u.username === currentUser.username);
             if (me) {
                 currentUser.isAdmin = me.role === 'owner';
@@ -38,12 +42,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         socket.on('new-message', renderMessage);
         socket.on('error-msg', (msg) => alert(msg));
-        socket.on('kicked', () => { alert("تم طردك."); localStorage.clear(); window.location.reload(); });
+        socket.on('kicked', () => {
+            alert("تم طردك بواسطة الأدمن.");
+            localStorage.clear();
+            window.location.reload();
+        });
 
         socket.emit('join-room', { roomId: currentTextChannel, userData: currentUser });
     };
 
     const renderMemberList = (users) => {
+        if (!memberList) return;
         memberList.innerHTML = '';
         const onlineCount = users.filter(u => u.isOnline).length;
         memberCount.innerText = `${onlineCount} متصل / ${users.length} إجمالي`;
@@ -61,10 +70,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentUser.isAdmin && user.username !== currentUser.username) {
                 actionsHtml = `
                     <div class="member-actions-popup">
-                        <div class="action-item" onclick="socket.emit('mute-user', '${user.username}')">${user.isMuted ? 'إلغاء الكتم' : 'كتم'}</div>
-                        <div class="action-item" onclick="socket.emit('assign-role', {targetUsername: '${user.username}', role: 'mod'})">مشرف</div>
-                        <div class="action-item" onclick="socket.emit('assign-role', {targetUsername: '${user.username}', role: 'member'})">عضو عادي</div>
-                        <div class="action-item danger" onclick="socket.emit('kick-user', '${user.username}')">طرد</div>
+                        <div class="action-item" onclick="window.emitAction('mute-user', '${user.username}')">${user.isMuted ? 'إلغاء الكتم' : 'كتم'}</div>
+                        <div class="action-item" onclick="window.emitAction('assign-role', {targetName: '${user.username}', role: 'mod'})">ترقية لمشرف</div>
+                        <div class="action-item" onclick="window.emitAction('assign-role', {targetName: '${user.username}', role: 'member'})">عضو عادي</div>
+                        <div class="action-item danger" onclick="window.emitAction('kick-user', '${user.username}')">طرد</div>
                     </div>
                 `;
             }
@@ -78,6 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             memberList.appendChild(div);
         });
+    };
+
+    window.emitAction = (event, data) => {
+        socket.emit(event, data);
     };
 
     const renderMessage = (data) => {
@@ -98,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleLogin = (name) => {
         currentUser.username = name;
         localStorage.setItem('jafarcord_user', JSON.stringify(currentUser));
-        authOverlay.style.display = 'none';
+        if (authOverlay) authOverlay.style.display = 'none';
         document.body.classList.remove('auth-mode');
         initConnection();
     };
@@ -108,19 +121,48 @@ document.addEventListener('DOMContentLoaded', () => {
         handleLogin(currentUser.username);
     }
 
+    // Auth Switching
+    if (showRegister) {
+        showRegister.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginCard.style.display = 'none';
+            registerCard.style.display = 'block';
+        });
+    }
+
+    if (showLogin) {
+        showLogin.addEventListener('click', (e) => {
+            e.preventDefault();
+            registerCard.style.display = 'none';
+            loginCard.style.display = 'block';
+        });
+    }
+
     document.getElementById('loginForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const u = document.getElementById('loginEmail').value;
         if (u) handleLogin(u);
     });
 
+    document.getElementById('registerForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const u = document.getElementById('regUsername').value;
+        if (u) handleLogin(u);
+    });
+
     chatInput?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            socket.emit('send-message', { roomId: currentTextChannel, messageData: { username: currentUser.username, avatar: currentUser.avatar, text: chatInput.value, time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }), channel: currentTextChannel } });
+        if (e.key === 'Enter' && chatInput.value.trim() !== '') {
+            socket.emit('send-message', {
+                roomId: currentTextChannel,
+                messageData: {
+                    text: chatInput.value,
+                    time: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+                    channel: currentTextChannel
+                }
+            });
             chatInput.value = '';
         }
     });
 
-    // Sidebar
     document.getElementById('menuBtn')?.onclick = () => document.getElementById('channelSidebar').classList.toggle('open');
 });
