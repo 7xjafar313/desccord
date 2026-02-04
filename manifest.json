@@ -1,0 +1,23 @@
+{
+    "name": "JafarCord",
+    "short_name": "JafarCord",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#313338",
+    "theme_color": "#5865f2",
+    "description": "Premium Discord Clone for Android",
+    "icons": [
+        {
+            "src": "https://api.dicebear.com/7.x/identicon/svg?seed=jafar",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "https://api.dicebear.com/7.x/identicon/svg?seed=jafar",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

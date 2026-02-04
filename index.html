@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JafarCord - Discord Clone</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Cairo:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body class="dark-theme auth-mode">
+    <!-- Authentication Overlay -->
+    <div class="auth-overlay" id="authOverlay">
+        <!-- Login Card -->
+        <div class="auth-card" id="loginCard">
+            <div class="auth-logo">
+                <img src="https://api.dicebear.com/7.x/shapes/svg?seed=jafarcord&backgroundColor=5865f2" alt="Logo">
+            </div>
+            <h2>مرحباً بعودتك!</h2>
+            <p>نحن سعداء برؤيتك مرة أخرى!</p>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>البريد الإلكتروني أو رقم الهاتف</label>
+                    <input type="text" id="loginEmail" required>
+                </div>
+                <div class="form-group">
+                    <label>كلمة المرور</label>
+                    <input type="password" id="loginPassword" required>
+                    <a href="#" class="forgot-link">نسيت كلمة المرور؟</a>
+                </div>
+                <button type="submit" class="auth-btn">تسجيل الدخول</button>
+                <div class="auth-footer">
+                    تحتاج إلى حساب؟ <a href="#" id="showRegister">سجل الآن</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Register Card -->
+        <div class="auth-card" id="registerCard" style="display: none;">
+            <div class="auth-logo">
+                <img src="https://api.dicebear.com/7.x/shapes/svg?seed=jafarcord&backgroundColor=5865f2" alt="Logo">
+            </div>
+            <h2>إنشاء حساب</h2>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label>البريد الإلكتروني</label>
+                    <input type="email" id="regEmail" required>
+                </div>
+                <div class="form-group">
+                    <label>اسم المستخدم</label>
+                    <input type="text" id="regUsername" required>
+                </div>
+                <div class="form-group">
+                    <label>كلمة المرور</label>
+                    <input type="password" id="regPassword" required>
+                </div>
+                <button type="submit" class="auth-btn">متابعة</button>
+                <div class="auth-footer">
+                    لديك حساب بالفعل؟ <a href="#" id="showLogin">تسجيل الدخول</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Profile Modal -->
+    <div class="modal-overlay" id="profileModal">
+        <div class="profile-card">
+            <div class="profile-banner"></div>
+            <div class="profile-header">
+                <div class="profile-avatar-wrapper">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar" id="profileAvatar">
+                    <div class="status-indicator online large"></div>
+                </div>
+                <div class="profile-actions">
+                    <button class="edit-btn" id="editProfileBtn">تعديل الملف الشخصي</button>
+                </div>
+            </div>
+            <div class="profile-content">
+                <div class="profile-info">
+                    <h2 id="displayUsername">جعفر <span class="tag">#1337</span></h2>
+                    <div class="profile-status-text">برمجة هي الحياة 💻</div>
+                </div>
+                <div class="separator-full"></div>
+                <div class="profile-section">
+                    <h3>نبذة عني</h3>
+                    <p id="displayBio">مطور تطبيقات أندرويد طموح، أحب بناء تجارب مستخدم مذهلة.</p>
+                </div>
+                <div class="profile-section">
+                    <h3>عضو منذ</h3>
+                    <p>٤ فبراير، ٢٠٢٦</p>
+                </div>
+            </div>
+            <button class="close-modal" id="closeProfile"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div class="modal-overlay" id="editProfileModal">
+        <div class="auth-card">
+            <h2>تعديل الملف الشخصي</h2>
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label>اسم العرض</label>
+                    <input type="text" id="editUsername" value="جعفر">
+                </div>
+                <div class="form-group">
+                    <label>نبذة عني</label>
+                    <textarea id="editBio" rows="3">مطور تطبيقات أندرويد طموح، أحب بناء تجارب مستخدم مذهلة.</textarea>
+                </div>
+                <div class="form-group">
+                    <label>رابط الصورة الشخصية</label>
+                    <input type="text" id="editAvatarUrl" placeholder="رابط الصورة الخارجية">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="auth-btn">حفظ التغييرات</button>
+                    <button type="button" class="auth-btn" style="background: #4e5058;" id="cancelEdit">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Server Sidebar -->
+        <nav class="server-sidebar">
+            <div class="server-icon active" data-tooltip="الصفحة الرئيسية">
+                <img src="https://api.dicebear.com/7.x/shapes/svg?seed=jafarcord&backgroundColor=5865f2"
+                    alt="JafarCord">
+            </div>
+            <div class="separator"></div>
+            <div class="server-icon" data-tooltip="خادم البرمجة">
+                <img src="https://api.dicebear.com/7.x/identicon/svg?seed=dev" alt="Server">
+            </div>
+            <div class="server-icon" data-tooltip="مجتمع الألعاب">
+                <img src="https://api.dicebear.com/7.x/identicon/svg?seed=gaming" alt="Server">
+            </div>
+            <div class="server-icon add-server">
+                <i class="fa-solid fa-plus"></i>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Channel Sidebar (Collapsible on Mobile) -->
+            <aside class="channel-sidebar" id="channelSidebar">
+                <header class="sidebar-header">
+                    <h1>خادم البرمجة</h1>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </header>
+                <div class="channel-list">
+                    <div class="channel-category">القنوات النصية</div>
+                    <div class="channel-item active">
+                        <i class="fa-solid fa-hashtag"></i>
+                        <span>عام</span>
+                    </div>
+                    <div class="channel-item">
+                        <i class="fa-solid fa-hashtag"></i>
+                        <span>المشاريع</span>
+                    </div>
+                    <div class="channel-item">
+                        <i class="fa-solid fa-hashtag"></i>
+                        <span>المساعدة</span>
+                    </div>
+
+                    <div class="channel-category">القنوات الصوتية</div>
+                    <div class="channel-item voice-channel" data-id="v1">
+                        <i class="fa-solid fa-volume-high"></i>
+                        <span>غرفة الاجتماعات</span>
+                    </div>
+                    <div class="voice-users" id="v1-users"></div>
+
+                    <div class="channel-item voice-channel" data-id="v2">
+                        <i class="fa-solid fa-volume-high"></i>
+                        <span>الألعاب</span>
+                    </div>
+                    <div class="voice-users" id="v2-users"></div>
+                </div>
+
+                <!-- Voice Connection Panel (Hidden by default) -->
+                <div class="voice-connection-status" id="voiceStatus">
+                    <div class="status-info">
+                        <div class="connection-indicator"></div>
+                        <div class="connection-text">تم الاتصال بالصوت</div>
+                        <div class="channel-name-mini" id="activeVoiceName">غرفة الاجتماعات</div>
+                    </div>
+                    <div class="connection-actions">
+                        <button class="status-btn disconnect" id="disconnectBtn"><i
+                                class="fa-solid fa-phone-slash"></i></button>
+                    </div>
+                </div>
+
+                <div class="user-panel">
+                    <div class="user-info">
+                        <div class="user-avatar-wrapper">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar"
+                                class="user-avatar">
+                            <div class="status-indicator online"></div>
+                        </div>
+                        <div class="user-details">
+                            <div class="username">جعفر</div>
+                            <div class="user-tag">#1337</div>
+                        </div>
+                    </div>
+                    <div class="user-controls">
+                        <button class="control-btn" title="كتم الصوت"><i class="fa-solid fa-microphone"></i></button>
+                        <button class="control-btn" title="تعطيل الصوت"><i class="fa-solid fa-headphones"></i></button>
+                        <button class="control-btn" title="الإعدادات"><i class="fa-solid fa-gear"></i></button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Chat Area -->
+            <section class="chat-area">
+                <header class="chat-header">
+                    <div class="mobile-menu-btn" id="menuBtn">
+                        <i class="fa-solid fa-bars"></i>
+                    </div>
+                    <div class="channel-title">
+                        <i class="fa-solid fa-hashtag"></i>
+                        <h2>عام</h2>
+                    </div>
+                    <div class="header-actions">
+                        <i class="fa-solid fa-bell"></i>
+                        <i class="fa-solid fa-thumbtack"></i>
+                        <i class="fa-solid fa-users"></i>
+                        <div class="search-bar">
+                            <input type="text" placeholder="بحث">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="messages-container" id="messagesContainer">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">#</div>
+                        <h1>أهلاً بك في قناة #عام!</h1>
+                        <p>هذه هي بداية قناة #عام في خادم البرمجة.</p>
+                    </div>
+
+                    <!-- Messages will be injected here -->
+                    <div class="message">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sara" alt="User"
+                            class="message-avatar">
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-user">سارة</span>
+                                <span class="message-time">اليوم الساعة 9:00 م</span>
+                            </div>
+                            <div class="message-text">السلام عليكم! هل بدأتم في تطوير التطبيق؟</div>
+                        </div>
+                    </div>
+
+                    <div class="message">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User"
+                            class="message-avatar">
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-user">جعفر</span>
+                                <span class="message-time">اليوم الساعة 9:05 م</span>
+                            </div>
+                            <div class="message-text">وعليكم السلام، نعم! نحن نستخدم الآن أحدث التقنيات لجعله يبدو
+                                احترافياً.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-wrapper">
+                    <div class="chat-input-container">
+                        <div class="input-actions">
+                            <button class="plus-btn" id="imageUploadBtn"><i
+                                    class="fa-solid fa-circle-plus"></i></button>
+                            <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                        </div>
+                        <input type="text" id="chatInput" placeholder="أرسل رسالة إلى #عام">
+                        <div class="input-emojis">
+                            <i class="fa-solid fa-gift"></i>
+                            <i class="fa-solid fa-face-smile" id="emojiBtn"></i>
+                        </div>
+                        <div class="emoji-picker" id="emojiPicker">
+                            <span>😀</span><span>😂</span><span>😍</span><span>🤔</span><span>👍</span><span>🔥</span><span>❤️</span><span>✨</span><span>🚀</span><span>🎉</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Member List Sidebar (Right) -->
+            <aside class="member-sidebar" id="memberSidebar">
+                <div class="member-group">الأعضاء المتصلون — <span id="memberCount">0</span></div>
+                <div class="member-list" id="memberList">
+                    <!-- Members will be injected here -->
+                </div>
+            </aside>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>
